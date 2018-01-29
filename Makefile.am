@@ -39,10 +39,12 @@ EnvScreen.h InfoScreen.h XAlloc.h
 if HTOP_LINUX
 htop_CFLAGS += -rdynamic 
 myhtopplatsources = linux/Platform.c linux/IOPriorityPanel.c linux/IOPriority.c \
-linux/LinuxProcess.c linux/LinuxProcessList.c linux/LinuxCRT.c linux/Battery.c
+linux/LinuxProcess.c linux/LinuxProcessList.c linux/LinuxCRT.c linux/Battery.c \
+linux/PerfCounter.c
 
 myhtopplatheaders = linux/Platform.h linux/IOPriorityPanel.h linux/IOPriority.h \
-linux/LinuxProcess.h linux/LinuxProcessList.h linux/LinuxCRT.h linux/Battery.h
+linux/LinuxProcess.h linux/LinuxProcessList.h linux/LinuxCRT.h linux/Battery.h \
+linux/PerfCounter.h
 endif
 
 if HTOP_FREEBSD
@@ -102,6 +104,9 @@ profile:
 
 debug:
 	$(MAKE) all CFLAGS="" AM_CPPFLAGS="-ggdb -DDEBUG"
+
+debug_symbols:
+	$(MAKE) all CFLAGS="" AM_CPPFLAGS="-ggdb -DNDEBUG"
 
 coverage:
 	$(MAKE) all CFLAGS="" AM_CPPFLAGS="-fprofile-arcs -ftest-coverage -DDEBUG" LDFLAGS="-lgcov"
