@@ -41,6 +41,7 @@ typedef struct CPUData_ {
    unsigned long long int softIrqPeriod;
    unsigned long long int stealPeriod;
    unsigned long long int guestPeriod;
+   double clockRate;
 } CPUData;
 
 typedef struct TtyDriver_ {
@@ -74,6 +75,10 @@ typedef struct LinuxProcessList_ {
 #define PROCMEMINFOFILE PROCDIR "/meminfo"
 #endif
 
+#ifndef PROCCPUINFOFILE
+#define PROCCPUINFOFILE PROCDIR "/cpuinfo"
+#endif
+
 #ifndef PROCTTYDRIVERSFILE
 #define PROCTTYDRIVERSFILE PROCDIR "/tty/drivers"
 #endif
@@ -90,6 +95,7 @@ typedef struct LinuxProcessList_ {
 #ifdef HAVE_DELAYACCT
 
 #endif
+#define CLOCK_MASK "cpu MHz"
 
 ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList, uid_t userId);
 
