@@ -72,6 +72,8 @@ static unsigned long int parseBatInfo(const char *fileName, const unsigned short
 
       fclose(file);
 
+      if (!line) break;
+
       char *foundNumStr = String_getToken(line, wordNum);
       const unsigned long int foundNum = atoi(foundNumStr);
       free(foundNumStr);
@@ -108,16 +110,13 @@ static ACPresence procAcpiCheck() {
       char statePath[50];
       xSnprintf((char *) statePath, sizeof statePath, "%s/%s/state", power_supplyPath, entryName);
       FILE* file = fopen(statePath, "r");
-
       if (!file) {
          isOn = AC_ERROR;
          continue;
       }
-
       char* line = String_readLine(file);
-      if (!line) continue;
-
       fclose(file);
+      if (!line) continue;
 
       const char *isOnline = String_getToken(line, 2);
       free(line);

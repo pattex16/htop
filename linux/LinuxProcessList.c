@@ -26,6 +26,12 @@ in the source distribution for its full text.
 #include <assert.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#ifdef MAJOR_IN_MKDEV
+#include <sys/mkdev.h>
+#elif defined(MAJOR_IN_SYSMACROS) || \
+   (defined(HAVE_SYS_SYSMACROS_H) && HAVE_SYS_SYSMACROS_H)
+#include <sys/sysmacros.h>
+#endif
 
 #ifdef HAVE_DELAYACCT
 #include <netlink/attr.h>
@@ -40,6 +46,8 @@ in the source distribution for its full text.
 /*{
 
 #include "ProcessList.h"
+
+extern long long btime;
 
 typedef struct CPUData_ {
    unsigned long long int totalTime;
@@ -110,7 +118,7 @@ typedef struct LinuxProcessList_ {
 #endif
 
 #ifndef PROC_LINE_LENGTH
-#define PROC_LINE_LENGTH 512
+#define PROC_LINE_LENGTH 4096
 #endif
 
 }*/
@@ -231,8 +239,8 @@ static void LinuxProcessList_initNetlinkSocket(LinuxProcessList* this) {
 ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList, uid_t userId) {
    LinuxProcessList* this = xCalloc(1, sizeof(LinuxProcessList));
    ProcessList* pl = &(this->super);
+
    ProcessList_init(pl, Class(LinuxProcess), usersTable, pidWhiteList, userId);
-   
    LinuxProcessList_initTtyDrivers(this);
 
    #ifdef HAVE_DELAYACCT
@@ -244,13 +252,19 @@ ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList, ui
    if (file == NULL) {
       CRT_fatalError("Cannot open " PROCSTATFILE);
    }
-   char buffer[PROC_LINE_LENGTH + 1];
-   int cpus = -1;
+   int cpus = 0;
    do {
-      cpus++;
-      char * s = fgets(buffer, PROC_LINE_LENGTH, file);
-      (void) s;
-   } while (String_startsWith(buffer, "cpu"));
+      char buffer[PROC_LINE_LENGTH + 1];
+      if (fgets(buffer, PROC_LINE_LENGTH + 1, file) == NULL) {
+         CRT_fatalError("No btime in " PROCSTATFILE);
+      } else if (String_startsWith(buffer, "cpu")) {
+         cpus++;
+      } else if (String_startsWith(buffer, "btime ")) {
+         sscanf(buffer, "btime %lld\n", &btime);
+         break;
+      }
+   } while(true);
+
    fclose(file);
 
    pl->cpuCount = MAX(cpus - 1, 1);
@@ -260,7 +274,6 @@ ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList, ui
       this->cpus[i].totalTime = 1;
       this->cpus[i].totalPeriod = 1;
    }
-
    return pl;
 }
 
@@ -356,7 +369,10 @@ static bool LinuxProcessList_readStatFile(Process *process, const char* dirname,
    location += 1;
    process->nlwp = strtol(location, &location, 10);
    location += 1;
-   for (int i=0; i<17; i++) location = strchr(location, ' ')+1;
+   location = strchr(location, ' ')+1;
+   lp->starttime = strtoll(location, &location, 10);
+   location += 1;
+   for (int i=0; i<15; i++) location = strchr(location, ' ')+1;
    process->exit_signal = strtol(location, &location, 10);
    location += 1;
    assert(location != NULL);
@@ -368,7 +384,7 @@ static bool LinuxProcessList_readStatFile(Process *process, const char* dirname,
 }
 
 
-static bool LinuxProcessList_statProcessDir(Process* process, const char* dirname, char* name, time_t curTime) {
+static bool LinuxProcessList_statProcessDir(Process* process, const char* dirname, char* name) {
    char filename[MAX_NAME+1];
    filename[MAX_NAME] = '\0';
 
@@ -378,13 +394,6 @@ static bool LinuxProcessList_statProcessDir(Process* process, const char* dirnam
    if (statok == -1)
       return false;
    process->st_uid = sstat.st_uid;
-  
-   struct tm date;
-   time_t ctime = sstat.st_ctime;
-   process->starttime_ctime = ctime;
-   (void) localtime_r((time_t*) &ctime, &date);
-   strftime(process->starttime_show, 7, ((ctime > curTime - 86400) ? "%R " : "%b%d "), &date);
-   
    return true;
 }
 
@@ -443,7 +452,7 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
          }
          break;
       case 's':
-         if (line[5] == 'r' && strncmp(line+1, "yscr: ", 6) == 0) {
+         if (line[4] == 'r' && strncmp(line+1, "yscr: ", 6) == 0) {
             process->io_syscr = strtoull(line+7, NULL, 10);
          } else if (strncmp(line+1, "yscw: ", 6) == 0) {
             process->io_syscw = strtoull(line+7, NULL, 10);
@@ -602,36 +611,36 @@ static void LinuxProcessList_readOomData(LinuxProcess* process, const char* dirn
 
 static int handleNetlinkMsg(struct nl_msg *nlmsg, void *linuxProcess) {
    struct nlmsghdr *nlhdr;
-  	struct nlattr *nlattrs[TASKSTATS_TYPE_MAX + 1];
-  	struct nlattr *nlattr;
-	struct taskstats *stats;
-	int rem;
-	unsigned long long int timeDelta;
-	LinuxProcess* lp = (LinuxProcess*) linuxProcess;
+   struct nlattr *nlattrs[TASKSTATS_TYPE_MAX + 1];
+   struct nlattr *nlattr;
+   struct taskstats *stats;
+   int rem;
+   unsigned long long int timeDelta;
+   LinuxProcess* lp = (LinuxProcess*) linuxProcess;
 
-	nlhdr = nlmsg_hdr(nlmsg);
+   nlhdr = nlmsg_hdr(nlmsg);
 
    if (genlmsg_parse(nlhdr, 0, nlattrs, TASKSTATS_TYPE_MAX, NULL) < 0) {
       return NL_SKIP;
-	}
+   }
 
-	if ((nlattr = nlattrs[TASKSTATS_TYPE_AGGR_PID]) || (nlattr = nlattrs[TASKSTATS_TYPE_NULL])) {
-		stats = nla_data(nla_next(nla_data(nlattr), &rem));
-		assert(lp->super.pid == stats->ac_pid);
-		timeDelta = (stats->ac_etime*1000 - lp->delay_read_time);
-		#define BOUNDS(x) isnan(x) ? 0.0 : (x > 100) ? 100.0 : x;
-		#define DELTAPERC(x,y) BOUNDS((float) (x - y) / timeDelta * 100);
-		lp->cpu_delay_percent = DELTAPERC(stats->cpu_delay_total, lp->cpu_delay_total);
-		lp->blkio_delay_percent = DELTAPERC(stats->blkio_delay_total, lp->blkio_delay_total);
-		lp->swapin_delay_percent = DELTAPERC(stats->swapin_delay_total, lp->swapin_delay_total);
-		#undef DELTAPERC
-		#undef BOUNDS
-		lp->swapin_delay_total = stats->swapin_delay_total;
-		lp->blkio_delay_total = stats->blkio_delay_total;
-		lp->cpu_delay_total = stats->cpu_delay_total;
-		lp->delay_read_time = stats->ac_etime*1000;
-	}
-  	return NL_OK;
+   if ((nlattr = nlattrs[TASKSTATS_TYPE_AGGR_PID]) || (nlattr = nlattrs[TASKSTATS_TYPE_NULL])) {
+      stats = nla_data(nla_next(nla_data(nlattr), &rem));
+      assert(lp->super.pid == stats->ac_pid);
+      timeDelta = (stats->ac_etime*1000 - lp->delay_read_time);
+      #define BOUNDS(x) isnan(x) ? 0.0 : (x > 100) ? 100.0 : x;
+      #define DELTAPERC(x,y) BOUNDS((float) (x - y) / timeDelta * 100);
+      lp->cpu_delay_percent = DELTAPERC(stats->cpu_delay_total, lp->cpu_delay_total);
+      lp->blkio_delay_percent = DELTAPERC(stats->blkio_delay_total, lp->blkio_delay_total);
+      lp->swapin_delay_percent = DELTAPERC(stats->swapin_delay_total, lp->swapin_delay_total);
+      #undef DELTAPERC
+      #undef BOUNDS
+      lp->swapin_delay_total = stats->swapin_delay_total;
+      lp->blkio_delay_total = stats->blkio_delay_total;
+      lp->cpu_delay_total = stats->cpu_delay_total;
+      lp->delay_read_time = stats->ac_etime*1000;
+   }
+   return NL_OK;
 }
 
 static void LinuxProcessList_readDelayAcctData(LinuxProcessList* this, LinuxProcess* process) {
@@ -678,9 +687,6 @@ static void setCommand(Process* process, const char* command, int len) {
 }
 
 static bool LinuxProcessList_readCmdlineFile(Process* process, const char* dirname, const char* name) {
-   if (Process_isKernelThread(process))
-      return true;
-
    char filename[MAX_NAME+1];
    xSnprintf(filename, MAX_NAME, "%s/%s/cmdline", dirname, name);
    int fd = open(filename, O_RDONLY);
@@ -692,7 +698,10 @@ static bool LinuxProcessList_readCmdlineFile(Process* process, const char* dirna
    close(fd);
    int tokenEnd = 0; 
    int lastChar = 0;
-   if (amtRead <= 0) {
+   if (amtRead == 0) {
+      ((LinuxProcess*)process)->isKernelThread = true;
+      return true;
+   } else if (amtRead < 0) {
       return false;
    }
    for (int i = 0; i < amtRead; i++) {
@@ -710,7 +719,7 @@ static bool LinuxProcessList_readCmdlineFile(Process* process, const char* dirna
    }
    command[lastChar + 1] = '\0';
    process->basenameOffset = tokenEnd;
-   setCommand(process, command, lastChar);
+   setCommand(process, command, lastChar + 1);
 
    return true;
 }
@@ -763,7 +772,6 @@ static bool LinuxProcessList_recurseProcTree(LinuxProcessList* this, const char*
    struct dirent* entry;
    Settings* settings = pl->settings;
 
-   time_t curTime = tv.tv_sec;
    #ifdef HAVE_TASKSTATS
    unsigned long long now = tv.tv_sec*1000LL+tv.tv_usec/1000LL;
    #endif
@@ -835,7 +843,7 @@ static bool LinuxProcessList_recurseProcTree(LinuxProcessList* this, const char*
 
       if(!preExisting) {
 
-         if (! LinuxProcessList_statProcessDir(proc, dirname, name, curTime))
+         if (! LinuxProcessList_statProcessDir(proc, dirname, name))
             goto errorReadingProcess;
 
          proc->user = UsersTable_getRef(pl->usersTable, proc->st_uid);

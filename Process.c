@@ -28,6 +28,12 @@ in the source distribution for its full text.
 #include <time.h>
 #include <assert.h>
 #include <math.h>
+#ifdef MAJOR_IN_MKDEV
+#include <sys/mkdev.h>
+#elif defined(MAJOR_IN_SYSMACROS) || \
+   (defined(HAVE_SYS_SYSMACROS_H) && HAVE_SYS_SYSMACROS_H)
+#include <sys/sysmacros.h>
+#endif
 
 #ifdef __ANDROID__
 #define SYS_ioprio_get __NR_ioprio_get
@@ -172,7 +178,11 @@ typedef struct ProcessClass_ {
 
 #define As_Process(this_)              ((ProcessClass*)((this_)->super.klass))
 
+#define Process_getParentPid(process_)    (process_->tgid == process_->pid ? process_->ppid : process_->tgid)
+
 #define Process_isChildOf(process_, pid_) (process_->tgid == pid_ || (process_->tgid == process_->pid && process_->ppid == pid_))
+
+#define Process_sortState(state) ((state) == 'I' ? 0x100 : (state))
 
 }*/
 
@@ -218,7 +228,7 @@ void Process_humanNumber(RichString* str, unsigned long number, bool coloring) {
    if(number >= (10 * ONE_DECIMAL_M)) {
       #ifdef __LP64__
       if(number >= (100 * ONE_DECIMAL_G)) {
-         len = snprintf(buffer, 10, "%4ldT ", number / ONE_G);
+         len = snprintf(buffer, 10, "%4luT ", number / ONE_G);
          RichString_appendn(str, largeNumberColor, buffer, len);
          return;
       } else if (number >= (1000 * ONE_DECIMAL_M)) {
@@ -228,7 +238,7 @@ void Process_humanNumber(RichString* str, unsigned long number, bool coloring) {
       }
       #endif
       if(number >= (100 * ONE_DECIMAL_M)) {
-         len = snprintf(buffer, 10, "%4ldG ", number / ONE_M);
+         len = snprintf(buffer, 10, "%4luG ", number / ONE_M);
          RichString_appendn(str, largeNumberColor, buffer, len);
          return;
       }
@@ -236,11 +246,11 @@ void Process_humanNumber(RichString* str, unsigned long number, bool coloring) {
       RichString_appendn(str, largeNumberColor, buffer, len);
       return;
    } else if (number >= 100000) {
-      len = snprintf(buffer, 10, "%4ldM ", number / ONE_K);
+      len = snprintf(buffer, 10, "%4luM ", number / ONE_K);
       RichString_appendn(str, processMegabytesColor, buffer, len);
       return;
    } else if (number >= 1000) {
-      len = snprintf(buffer, 10, "%2ld", number/1000);
+      len = snprintf(buffer, 10, "%2lu", number/1000);
       RichString_appendn(str, processMegabytesColor, buffer, len);
       number %= 1000;
       len = snprintf(buffer, 10, "%03lu ", number);
@@ -268,7 +278,7 @@ void Process_colorNumber(RichString* str, unsigned long long number, bool colori
       int len = snprintf(buffer, 13, "    no perm ");
       RichString_appendn(str, CRT_colors[PROCESS_SHADOW], buffer, len);
    } else if (number > 10000000000) {
-      xSnprintf(buffer, 13, "%11lld ", number / 1000);
+      xSnprintf(buffer, 13, "%11llu ", number / 1000);
       RichString_appendn(str, largeNumberColor, buffer, 5);
       RichString_appendn(str, processMegabytesColor, buffer+5, 3);
       RichString_appendn(str, processColor, buffer+8, 4);
@@ -370,9 +380,9 @@ void Process_writeField(Process* this, RichString* str, ProcessField field) {
    switch (field) {
    case PERCENT_CPU: {
       if (this->percent_cpu > 999.9) {
-         xSnprintf(buffer, n, "%4d ", (unsigned int)this->percent_cpu); 
+         xSnprintf(buffer, n, "%4u ", (unsigned int)this->percent_cpu); 
       } else if (this->percent_cpu > 99.9) {
-         xSnprintf(buffer, n, "%3d. ", (unsigned int)this->percent_cpu); 
+         xSnprintf(buffer, n, "%3u. ", (unsigned int)this->percent_cpu); 
       } else {
          xSnprintf(buffer, n, "%4.1f ", this->percent_cpu);
       }
@@ -534,11 +544,11 @@ bool Process_setPriority(Process* this, int priority) {
    return (err == 0);
 }
 
-bool Process_changePriorityBy(Process* this, size_t delta) {
+bool Process_changePriorityBy(Process* this, int delta) {
    return Process_setPriority(this, this->nice + delta);
 }
 
-void Process_sendSignal(Process* this, size_t sgn) {
+void Process_sendSignal(Process* this, int sgn) {
    CRT_dropPrivileges();
    kill(this->pid, (int) sgn);
    CRT_restorePrivileges();
@@ -598,7 +608,7 @@ long Process_compare(const void* v1, const void* v2) {
          return (p1->starttime_ctime - p2->starttime_ctime);
    }
    case STATE:
-      return (p1->state - p2->state);
+      return (Process_sortState(p1->state) - Process_sortState(p2->state));
    case ST_UID:
       return (p1->st_uid - p2->st_uid);
    case TIME:

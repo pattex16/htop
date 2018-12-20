@@ -9,11 +9,18 @@ Released under the GNU GPL, see the COPYING file
 in the source distribution for its full text.
 */
 
+#ifdef MAJOR_IN_MKDEV
+#elif defined(MAJOR_IN_SYSMACROS) || \
+   (defined(HAVE_SYS_SYSMACROS_H) && HAVE_SYS_SYSMACROS_H)
+#endif
+
 #ifdef HAVE_DELAYACCT
 #endif
 
 
 #include "ProcessList.h"
+
+extern long long btime;
 
 typedef struct CPUData_ {
    unsigned long long int totalTime;
@@ -84,7 +91,7 @@ typedef struct LinuxProcessList_ {
 #endif
 
 #ifndef PROC_LINE_LENGTH
-#define PROC_LINE_LENGTH 512
+#define PROC_LINE_LENGTH 4096
 #endif
 
 
@@ -92,10 +99,11 @@ typedef struct LinuxProcessList_ {
 #define CLAMP(x,low,high) (((x)>(high))?(high):(((x)<(low))?(low):(x)))
 #endif
 
+#define CLOCK_MASK "cpu MHz"
+
 #ifdef HAVE_DELAYACCT
 
 #endif
-#define CLOCK_MASK "cpu MHz"
 
 ProcessList* ProcessList_new(UsersTable* usersTable, Hashtable* pidWhiteList, uid_t userId);
 
@@ -121,6 +129,7 @@ void ProcessList_delete(ProcessList* pl);
 #ifdef HAVE_DELAYACCT
 
 #endif
+
 
 void ProcessList_goThroughEntries(ProcessList* super);
 
