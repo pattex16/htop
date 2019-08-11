@@ -144,8 +144,6 @@ static void Settings_defaultMeters(Settings* this) {
    this->columns[1].modes[r++] = TEXT_METERMODE;
    this->columns[1].names[r] = xStrdup("CPUTemp");
    this->columns[1].modes[r++] = TEXT_METERMODE;
-   this->columns[1].names[r] = xStrdup("CPUFreq");
-   this->columns[1].modes[r++] = TEXT_METERMODE;
 }
 
 static void readFields(ProcessField* fields, int* flags, const char* line) {
@@ -352,7 +350,7 @@ Settings* Settings_new(int cpuCount) {
    this->cpuCount = cpuCount;
    this->showProgramPath = true;
    this->highlightThreads = true;
-   this->showClockRate = false;
+   this->showClockRate = true;
    
    this->fields = xCalloc(Platform_numberOfFields+1, sizeof(ProcessField));
    // TODO: turn 'fields' into a Vector,
