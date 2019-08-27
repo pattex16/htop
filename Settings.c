@@ -106,35 +106,31 @@ static void Settings_readMeterModes(Settings* this, char* line, int column) {
 }
 
 static void Settings_defaultMeters(Settings* this) {
-   int sizes[] = { 3, 5 };
-   if (this->cpuCount > 4) {
-      sizes[1]++;
-   }
+   int defaultColumnLen = 6;
    for (int i = 0; i < 2; i++) {
-      this->columns[i].names = xCalloc(sizes[i] + 1, sizeof(char*));
-      this->columns[i].modes = xCalloc(sizes[i], sizeof(int));
-      this->columns[i].len = sizes[i];
+      this->columns[i].names = xCalloc(defaultColumnLen + 1, sizeof(char*));
+      this->columns[i].modes = xCalloc(defaultColumnLen, sizeof(int));
    }
    
-   int r = 0;
+   int q = 0, r = 0;
    if (this->cpuCount > 8) {
-      this->columns[0].names[0] = xStrdup("LeftCPUs2");
-      this->columns[0].modes[0] = BAR_METERMODE;
+      this->columns[0].names[q] = xStrdup("LeftCPUs2");
+      this->columns[0].modes[q++] = BAR_METERMODE;
       this->columns[1].names[r] = xStrdup("RightCPUs2");
       this->columns[1].modes[r++] = BAR_METERMODE;
    } else if (this->cpuCount > 4) {
-      this->columns[0].names[0] = xStrdup("LeftCPUs");
-      this->columns[0].modes[0] = BAR_METERMODE;
+      this->columns[0].names[q] = xStrdup("LeftCPUs");
+      this->columns[0].modes[q++] = BAR_METERMODE;
       this->columns[1].names[r] = xStrdup("RightCPUs");
       this->columns[1].modes[r++] = BAR_METERMODE;
    } else {
-      this->columns[0].names[0] = xStrdup("AllCPUs");
-      this->columns[0].modes[0] = BAR_METERMODE;
+      this->columns[0].names[q] = xStrdup("AllCPUs");
+      this->columns[0].modes[q++] = BAR_METERMODE;
    }
-   this->columns[0].names[1] = xStrdup("Memory");
-   this->columns[0].modes[1] = BAR_METERMODE;
-   this->columns[0].names[2] = xStrdup("Swap");
-   this->columns[0].modes[2] = BAR_METERMODE;
+   this->columns[0].names[q] = xStrdup("Memory");
+   this->columns[0].modes[q++] = BAR_METERMODE;
+   this->columns[0].names[q] = xStrdup("Swap");
+   this->columns[0].modes[q++] = BAR_METERMODE;
    
    this->columns[1].names[r] = xStrdup("Tasks");
    this->columns[1].modes[r++] = TEXT_METERMODE;
@@ -144,6 +140,8 @@ static void Settings_defaultMeters(Settings* this) {
    this->columns[1].modes[r++] = TEXT_METERMODE;
    this->columns[1].names[r] = xStrdup("CPUTemp");
    this->columns[1].modes[r++] = TEXT_METERMODE;
+
+   this->columns[0].len = q, this->columns[1].len = r;
 }
 
 static void readFields(ProcessField* fields, int* flags, const char* line) {
