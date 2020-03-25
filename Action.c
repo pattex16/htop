@@ -406,7 +406,7 @@ static Htop_Reaction actionRedraw() {
 }
 
 static const struct { const char* key; const char* info; } helpLeft[] = {
-   { .key = "   hjkl: ", .info = "scroll process list" },
+   { .key = "   wasd: ", .info = "scroll process list" },
    { .key = " Digits: ", .info = "incremental PID search" },
    { .key = "   F3 /: ", .info = "incremental name search" },
    { .key = "   F4 \\: ",.info = "incremental name filtering" },
@@ -431,12 +431,12 @@ static const struct { const char* key; const char* info; } helpRight[] = {
    { .key = "   F7 ]: ", .info = "higher priority (root only)" },
    { .key = "   F8 [: ", .info = "lower priority (+ nice)" },
 #if (HAVE_LIBHWLOC || HAVE_LINUX_AFFINITY)
-   { .key = "      a: ", .info = "set CPU affinity" },
+   { .key = "      h: ", .info = "set CPU affinity" },
 #endif
    { .key = "      e: ", .info = "show process environment" },
    { .key = "      i: ", .info = "set IO priority" },
    { .key = "      L: ", .info = "list open files with lsof" },
-   { .key = "      s: ", .info = "trace syscalls with strace" },
+   { .key = "      j: ", .info = "trace syscalls with strace" },
    { .key = "         ", .info = "" },
    { .key = " F2 C S: ", .info = "setup" },
    { .key = "   F1 h: ", .info = "show this help screen" },
@@ -574,7 +574,7 @@ void Action_setBindings(Htop_Action* keys) {
    keys['.'] = actionSetSortColumn;
    keys[KEY_F(10)] = actionQuit;
    keys['q'] = actionQuit;
-   keys['a'] = actionSetAffinity;
+   keys['h'] = actionSetAffinity;
    keys[KEY_F(9)] = actionKill;
    keys['x'] = actionKill;
    keys[KEY_RECLICK] = actionExpandOrCollapse;
@@ -588,7 +588,7 @@ void Action_setBindings(Htop_Action* keys) {
    keys['C'] = actionSetup;
    keys[KEY_F(2)] = actionSetup;
    keys['L'] = actionLsof;
-   keys['s'] = actionStrace;
+   keys['j'] = actionStrace;
    keys[' '] = actionTag;
    keys['\014'] = actionRedraw; // Ctrl+L
    keys[KEY_F(1)] = actionHelp;

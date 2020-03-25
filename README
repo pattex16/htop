@@ -11,6 +11,8 @@ forks humbly collected
 
 [clock-rate](https://github.com/aleksei-udalov/htop/tree/clock_rate)
 
+[all the stuff above](https://github.com/vitrvvivs/htop)
+
 Introduction
 ------------
 
@@ -22,7 +24,7 @@ but we also have code for running under FreeBSD and Mac OS X
 This software has evolved considerably over the years,
 and is reasonably complete, but there is always room for improvement.
 
-Vim keybindings
+WASD keybindings
 ----------------
 
 These are the keybindings added in this fork of htop:
@@ -34,11 +36,11 @@ These are the keybindings added in this fork of htop:
 
   <C-u>      up 1/2 page
 
-    k
+    w
 
-h       l    one character
+a       d    one character
 
-    j
+    s
 
   <C-d>      down 1/2 page
 
